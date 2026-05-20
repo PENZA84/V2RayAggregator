@@ -72,4 +72,54 @@ jobs:
           
       - name: Commit & Push changes (Этап 2: Тест скорости)
         run: |
-          git config --local user.email "actions@github.com
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git pull origin master || true
+          
+          git add EternityBase || true
+          git add Eternity || true
+          git add Eternity.txt || true
+          git add sub/sub_merge.txt || true
+          git add sub/sub_merge_base64.txt || true
+          git add LogInfo.txt || true
+          git add sub/splitted/* || true
+          
+          if git diff --cached --quiet; then
+            echo "📊 Этап 2: Изменений в тестах скорости нет, пропускаем коммит."
+          else
+            git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Tested"
+            git push origin master || true
+          fi
+
+      - name: Run Convertor & Formatter
+        run: |
+          sleep 5
+          wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
+          tar -zxvf subconverter.tar.gz -C ./
+          chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
+          python ./utils/eternity_convert.py
+          
+      - name: Commit & Push changes (Этап 3: Фильтрация и Очистка)
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git pull origin master || true
+          
+          git add Eternity.yml || true
+          git add Eternity || true
+          git add README.md || true
+          git add update/* || true
+          git add LogInfo.txt || true
+          
+          # Выжигаем за собой временные архивы и логи сабконвертера
+          rm -f subconverter.tar.gz || true
+          rm -rf subconverter/ || true
+          rm -f subconverter.log || true
+          git clean -f -d
+          
+          if git diff --cached --quiet; then
+            echo "📊 Этап 3: Фильтры не изменились, конвейер чист."
+          else
+            git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
+            git push origin master || true
+          fi
