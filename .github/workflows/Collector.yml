@@ -3,10 +3,6 @@ name: Collect
 on:
   workflow_dispatch:
 
-  push:
-    branches:
-      - master
-
   schedule:
     # Запуск каждые 12 часов
     - cron: "0 0,12 * * *"
