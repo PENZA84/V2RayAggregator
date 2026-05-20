@@ -10,8 +10,7 @@ on:
       - "./sub/sub_merge_yaml.yml"
 
   schedule:
-    # - cron: '*/5 * * * *'
-    # 表达式生成  https://crontab.guru/
+    # Запуск каждые 12 часов
     - cron: "0 0,12 * * *"
 
 jobs:
@@ -20,31 +19,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
       - uses: actions/setup-node@v3.7.0
         with:
           node-version: "18.x"
+          
       - uses: bahmutov/npm-install@v1.10.9
         with:
           working-directory: ./utils/localserver
+          
       - uses: actions/setup-python@v4.7.0
         with:
           python-version: "3.11"
           cache: "pip"
-      # setup actions has built-in caching function
-      # - uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/pip
-      #     key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pip-
-      # - uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/yarn
-      #     key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-node-
+
       - name: Set Timezone
         run: sudo timedatectl set-timezone 'Asia/Tehran'
+        
       - name: Install Requirements
         run: |
           pip install -r ./utils/requirements.txt
@@ -57,17 +48,27 @@ jobs:
           node ./utils/localserver/index.js &
           sleep 2
           python ./utils/list_merge.py
-      - name: Commit Changes
+          
+      - name: Commit Changes (Этап 1: Сбор подписок)
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add ./sub
-          git add ./utils/Country.mmdb
-          git add README.md
+          git fetch origin master
           git checkout master
-          git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Collected"
-      - name: Push Changes
+          
+          # Аккуратно добавляем результаты сбора
+          git add ./sub/ || true
+          git add ./utils/Country.mmdb || true
+          git add README.md || true
+          
+          # Проверяем на изменения, чтобы не вылетать с ошибкой
+          if git diff --cached --quiet; then
+            echo "📊 Этап 1: Новых подписок не собрано, пропускаем коммит."
+          else
+            git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Collected"
+          fi
+
+      - name: Push Changes (Этап 1)
         uses: ad-m/github-push-action@master
         with:
           branch: master
@@ -77,20 +78,29 @@ jobs:
           sleep 5
           sudo sh ./utils/speedtest/speedtest2_yaml.sh
           python ./utils/speedtest/output.py
-      - name: Commit changes
+          
+      - name: Commit changes (Этап 2: Тест скорости)
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add EternityBase
-          git add Eternity
-          git add Eternity.txt
-          git add ./sub/sub_merge.txt
-          git add ./sub/sub_merge_base64.txt
-          git add LogInfo.txt
-          git add ./sub/splitted/*
-          git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Tested"
-      - name: Push Change
+          git fetch origin master
+          git checkout master
+          
+          git add EternityBase || true
+          git add Eternity || true
+          git add Eternity.txt || true
+          git add ./sub/sub_merge.txt || true
+          git add ./sub/sub_merge_base64.txt || true
+          git add LogInfo.txt || true
+          git add ./sub/splitted/* || true
+          
+          if git diff --cached --quiet; then
+            echo "📊 Этап 2: Изменений в тестах скорости нет, пропускаем коммит."
+          else
+            git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Tested"
+          fi
+
+      - name: Push Change (Этап 2)
         uses: ad-m/github-push-action@master
         with:
           branch: master
@@ -102,19 +112,33 @@ jobs:
           tar -zxvf subconverter.tar.gz -C ./
           chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
           python ./utils/eternity_convert.py
-      - name: Commit changes
+          
+      - name: Commit changes (Этап 3: Фильтрация и Очистка)
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add Eternity.yml
-          git add Eternity
-          git add README.md
-          git add ./update/*
-          git add LogInfo.txt
+          git fetch origin master
+          git checkout master
+          
+          git add Eternity.yml || true
+          git add Eternity || true
+          git add README.md || true
+          git add ./update/* || true
+          git add LogInfo.txt || true
+          
+          # Выжигаем за собой временные архивы и логи сабконвертера, чтобы Гитхаб не ругался на мусор
+          rm -f subconverter.tar.gz || true
+          rm -rf subconverter/ || true
+          rm -f subconverter.log || true
           git clean -f -d
-          git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
-      - name: Push Change
+          
+          if git diff --cached --quiet; then
+            echo "📊 Этап 3: Фильтры не изменились, конвейер чист."
+          else
+            git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
+          fi
+
+      - name: Push Change (Этап 3)
         uses: ad-m/github-push-action@master
         with:
           branch: master
