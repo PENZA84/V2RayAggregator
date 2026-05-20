@@ -5,9 +5,9 @@ on:
 
   push:
     paths:
-      - "./EternityBase"
-      - "./sub/sub_merge_base64.txt"
-      - "./sub/sub_merge_yaml.yml"
+      - "EternityBase"
+      - "sub/sub_merge_base64.txt"
+      - "sub/sub_merge_yaml.yml"
 
   schedule:
     # Запуск каждые 12 часов
@@ -49,29 +49,22 @@ jobs:
           sleep 2
           python ./utils/list_merge.py
           
-      - name: Commit Changes (Этап 1: Сбор подписок)
+      - name: Commit & Push Changes (Этап 1: Сбор подписок)
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git fetch origin master
-          git checkout master
           
           # Аккуратно добавляем результаты сбора
-          git add ./sub/ || true
-          git add ./utils/Country.mmdb || true
+          git add sub/* || true
+          git add utils/Country.mmdb || true
           git add README.md || true
           
-          # Проверяем на изменения, чтобы не вылетать с ошибкой
           if git diff --cached --quiet; then
             echo "📊 Этап 1: Новых подписок не собрано, пропускаем коммит."
           else
             git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Collected"
+            git push origin master || true
           fi
-
-      - name: Push Changes (Этап 1)
-        uses: ad-m/github-push-action@master
-        with:
-          branch: master
 
       - name: Run Lite Speedtest
         run: |
@@ -79,31 +72,26 @@ jobs:
           sudo sh ./utils/speedtest/speedtest2_yaml.sh
           python ./utils/speedtest/output.py
           
-      - name: Commit changes (Этап 2: Тест скорости)
+      - name: Commit & Push changes (Этап 2: Тест скорости)
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git fetch origin master
-          git checkout master
+          git pull origin master || true
           
           git add EternityBase || true
           git add Eternity || true
           git add Eternity.txt || true
-          git add ./sub/sub_merge.txt || true
-          git add ./sub/sub_merge_base64.txt || true
+          git add sub/sub_merge.txt || true
+          git add sub/sub_merge_base64.txt || true
           git add LogInfo.txt || true
-          git add ./sub/splitted/* || true
+          git add sub/splitted/* || true
           
           if git diff --cached --quiet; then
             echo "📊 Этап 2: Изменений в тестах скорости нет, пропускаем коммит."
           else
             git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Tested"
+            git push origin master || true
           fi
-
-      - name: Push Change (Этап 2)
-        uses: ad-m/github-push-action@master
-        with:
-          branch: master
 
       - name: Run Convertor & Formatter
         run: |
@@ -113,20 +101,19 @@ jobs:
           chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
           python ./utils/eternity_convert.py
           
-      - name: Commit changes (Этап 3: Фильтрация и Очистка)
+      - name: Commit & Push changes (Этап 3: Фильтрация и Очистка)
         run: |
           git config --local user.email "actions@github.com"
           git config --local user.name "GitHub Actions"
-          git fetch origin master
-          git checkout master
+          git pull origin master || true
           
           git add Eternity.yml || true
           git add Eternity || true
           git add README.md || true
-          git add ./update/* || true
+          git add update/* || true
           git add LogInfo.txt || true
           
-          # Выжигаем за собой временные архивы и логи сабконвертера, чтобы Гитхаб не ругался на мусор
+          # Выжигаем за собой временные архивы и логи сабконвертера
           rm -f subconverter.tar.gz || true
           rm -rf subconverter/ || true
           rm -f subconverter.log || true
@@ -136,9 +123,5 @@ jobs:
             echo "📊 Этап 3: Фильтры не изменились, конвейер чист."
           else
             git commit -m "✔️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
+            git push origin master || true
           fi
-
-      - name: Push Change (Этап 3)
-        uses: ad-m/github-push-action@master
-        with:
-          branch: master
