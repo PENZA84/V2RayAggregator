@@ -1,55 +1,83 @@
 name: sub_merge
 
-# 触发条件
+# Условия запуска
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Ручной запуск
 
   schedule:
-    # - cron: '*/5 * * * *'
-    # 表达式生成  https://crontab.guru/
+    # Запуск каждые 12 часов: в 00:00 и 12:00
     - cron: "0 0,12 * * *"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # 📥 Копируем репозиторий полностью
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      # 🐍 Устанавливаем Python 3.11 (стабильная версия)
       - name: Install Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
-      - name: Load Cache
-        uses: actions/cache@v2
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/run_in_Actions/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          python-version: "3.11"
+          cache: "pip" # Встроенное кэширование, старое убрала
+
+      # ⏱ Устанавливаем часовой пояс
       - name: Set Timezone
-        run: sudo timedatectl set-timezone 'Asia/Tehran'
+        run: |
+          sudo timedatectl set-timezone 'Asia/Tehran'
+          echo "Текущее время: $(date)"
+
+      # 📦 Устанавливаем зависимости
       - name: Install Requirements
         run: |
+          python -m pip install --upgrade pip
           pip install -r ./utils/requirements.txt
+          pip install requests httpx urllib3 # Дополнительно для надёжности
+
+      # ⚙️ Запускаем задачи: конвертер + объединение списков
       - name: Running Tasks
         run: |
-          wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxvf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
+          # Скачиваем и запускаем subconverter
+          wget -q -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
+          tar -zxf subconverter.tar.gz -C ./
+          chmod +x ./subconverter/subconverter
+          nohup ./subconverter/subconverter > ./subconverter.log 2>&1 &
 
+          # Запускаем основной скрипт объединения
           python ./utils/list_merge.py
 
+          # Очистка временных файлов
+          rm -f subconverter.tar.gz || true
+          rm -rf subconverter/ || true
+          rm -f subconverter.log || true
+
+      # 💾 Сохраняем изменения
       - name: Commit Changes
         run: |
           git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add ./sub
-          git add ./utils/Country.mmdb
-          git add README.md
-          git checkout master
-          git commit -m "$(date '+%Y-%m-%d %H:%M:%S') Update Nodes"
+          git config --local user.name "GitHub Actions Bot"
+
+          git pull origin master --rebase || true # Без ошибок при синхронизации
+
+          git add ./sub/ || true
+          git add ./utils/Country.mmdb || true
+          git add README.md || true
+
+          # Пропускаем коммит, если ничего не изменилось
+          if git diff --staged --quiet; then
+            echo "📊 Нет новых изменений — обновление не требуется."
+          else
+            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') ✅ Update Nodes merged"
+          fi
+
+      # 🚀 Отправляем в репозиторий
       - name: Push Changes
         uses: ad-m/github-push-action@master
         with:
           branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }} # Встроенный токен, ничего создавать не нужно
