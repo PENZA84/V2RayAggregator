@@ -5,7 +5,7 @@ on:
 
   schedule:
     # - cron: '*/5 * * * *'
-    # 表达式生成  https://crontab.guru/
+    # Cron выражение: запуск каждые 2 часа в 30 минут
     - cron: "30 */2 * * *"
 
 jobs:
@@ -13,86 +13,118 @@ jobs:
     name: Collect & SpeedTest & Filter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      # 📥 Копируем репозиторий
+      - uses: actions/checkout@v4
+        with:
+          ref: master # Указываем ветку явно
+          fetch-depth: 0 # Полная копия, чтобы гит видел всё
+
+      # 🐍 Устанавливаем Python 3.11
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: "pip"
-      # setup actions has built-in caching function
-      # - uses: actions/cache@v3
-      #   with:
-      #     path: ~/.cache/pip
-      #     key: ${{ runner.os }}-pip-${{ hashFiles('**/run_in_Actions/requirements.txt') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pip-
+          cache: "pip" # Встроенное кэширование — отлично!
+
+      # ⏱ Устанавливаем часовой пояс Тегеран
       - name: Set Timezone
-        run: sudo timedatectl set-timezone 'Asia/Tehran'
+        run: |
+          sudo timedatectl set-timezone 'Asia/Tehran'
+          echo "Часовой пояс установлен: $(date)"
+
+      # 📦 Устанавливаем зависимости
       - name: Install Requirements
         run: |
+          python -m pip install --upgrade pip
           pip install -r ./utils/requirements.txt
+          pip install requests httpx urllib3 # На всякий случай добавил самые нужные
 
+      # ⚙️ ЗАПУСК СБОРА КОНФИГУРАЦИЙ
       - name: Running Collector
         run: |
-          wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxvf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
+          # Скачиваем и запускаем subconverter
+          wget -q -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
+          tar -zxf subconverter.tar.gz -C ./
+          chmod +x ./subconverter/subconverter
+          nohup ./subconverter/subconverter > ./subconverter.log 2>&1 &
+          
+          # Запускаем основной скрипт
           python ./utils/list_merge_airport.py
-      - name: Commit Changes
+
+      # 💾 СОХРАНЯЕМ РЕЗУЛЬТАТЫ СБОРА
+      - name: Commit Changes (Collected)
         run: |
           git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add ./sub
-          git checkout master
-          # git add README.md
-          # git add ./utils/Country.mmdb
-          git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') Collected"
+          git config --local user.name "GitHub Actions Bot"
+          
+          git pull origin master --rebase || true # Без ошибок если нет изменений
+          
+          git add ./sub/
+          # Не добавляем пустые коммиты
+          git diff --staged --quiet || git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') | ✅ Collected new configs"
+
       - name: Push Changes
         uses: ad-m/github-push-action@master
         with:
           branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }} # Токен уже есть, ничего добавлять не нужно!
 
+      # 🚀 ЗАПУСК ТЕСТА СКОРОСТИ
       - name: Run Lite Speedtest
         run: |
-          sleep 5
+          sleep 10 # Небольшая пауза, чтобы всё подгрузилось
+          chmod +x ./utils/airport/speedtest/*.sh
           sudo sh ./utils/airport/speedtest/speedtest2_yaml.sh
           python ./utils/airport/speedtest/output.py
-      - name: Commit changes
+
+      # 💾 СОХРАНЯЕМ РЕЗУЛЬТАТЫ ТЕСТА
+      - name: Commit changes (Tested)
         run: |
           git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add EternityAir
+          git config --local user.name "GitHub Actions Bot"
+          
+          git pull origin master --rebase || true
+          
+          git add EternityAir/
           git add EternityAir.txt
           git add LogInfoAir.txt
-          git add ./sub
-          # git add ./sub/airport_sub_merge.txt
-          # git add ./sub/airport_merge_base64.txt
-          git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') Tested"
+          git add ./sub/
+          
+          git diff --staged --quiet || git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') | 🚀 Speedtest completed"
+
       - name: Push Change
         uses: ad-m/github-push-action@master
         with:
           branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
+      # 🔄 ЗАПУСК КОНВЕРТЕРА И ФИЛЬТРАЦИИ
       - name: Run Convertor & Formatter
         run: |
-          sleep 5
-          wget -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxvf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter && nohup ./subconverter/subconverter >./subconverter.log 2>&1 &
+          sleep 10
+          # Перекачиваем на всякий случай, если упал
+          wget -q -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
+          tar -zxf subconverter.tar.gz -C ./
+          chmod +x ./subconverter/subconverter
+          nohup ./subconverter/subconverter > ./subconverter.log 2>&1 &
+          
           python ./utils/eternity_convert_airport.py
-      - name: Commit changes
+
+      # 💾 СОХРАНЯЕМ ПОСЛЕ КОНВЕРТЕРА
+      - name: Commit changes (Filtered)
         run: |
           git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git pull origin master
+          git config --local user.name "GitHub Actions Bot"
+          
+          git pull origin master --rebase || true
+          
           git add EternityAir.yml
-          git add ./update/*
+          git add ./update/
           git add LogInfoAir.txt
-          # git add Eternity
-          # git add README.md
-          git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') Filtered"
+          
+          git diff --staged --quiet || git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') | ✨ Converted & Filtered"
+
       - name: Push Change
         uses: ad-m/github-push-action@master
         with:
           branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }}
