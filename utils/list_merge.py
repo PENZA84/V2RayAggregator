@@ -28,8 +28,8 @@ ipv6 = r'(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0
 
 
 def add_valid(line):
-    if (line.__contains__("ssr://") or line.__contains__("ss://")
-            or line.__contains__("trojan://") or line.__contains__("vmess://")):
+    if (line and ("ssr://" in line or "ss://" in line
+            or "trojan://" in line or "vmess://" in line)):
         return line
     return ''
 
@@ -40,142 +40,150 @@ class sub_merge():
         content_list = []
         for t in os.walk(sub_list_path):
             for f in t[2]:
-                f = t[0]+f
-                os.remove(f)
+                os.remove(os.path.join(t[0], f))
 
         for (index, url_container) in enumerate(url_list):
             ids = url_list[index]['id']
             remarks = url_list[index]['remarks']
-            if type(url_container['url']) == list:
+            if isinstance(url_container.get("url"), list):
                 for each_url in url_container["url"]:
                     content = ''
                     print("gather server from " + each_url)
-                    content += sub_convert.convert_remote(
-                        each_url, 'url', 'http://127.0.0.1:25500')
+                    try:
+                        content = sub_convert.convert_remote(each_url, 'url', 'http://127.0.0.1:25500')
+                    except Exception as e:
+                        print(f"convert_remote error: {e}")
+                        content = 'Url 解析错误'
 
                     if content == 'Url 解析错误':
-                        content = sub_convert.main(each_url, 'url', 'url')
+                        try:
+                            content = sub_convert.main(each_url, 'url', 'url')
+                        except Exception as e:
+                            print(f"sub_convert.main error: {e}")
+                            content = 'Url 解析错误'
+
                         if content != 'Url 解析错误':
                             if add_valid(content) != '':
                                 content_list.append(content)
                             else:
-                                print(f'this url failed{each_url}')
-                            print(
-                                f'Writing content of {remarks} to {ids:0>2d}.txt\n')
+                                print(f'this url failed {each_url}')
+                            print(f'Writing content of {remarks} to {ids:0>2d}.txt\n')
                         else:
-                            print(
-                                f'Writing error of {remarks} to {ids:0>2d}.txt\n')
-                        file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                    'a+', encoding='utf-8')
-                        file.write(content)
-                        file.close()
+                            print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
+
+                        try:
+                            with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                                file.write(content)
+                        except Exception as e:
+                            print(f"File write error: {e}")
+
                     elif content == 'Url 订阅内容无法解析':
-                        file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                    'a+', encoding='utf-8')
-                        file.write('Url Subscription could not be parsed')
-                        file.close()
-                        print(
-                            f'Writing error of {remarks} to {ids:0>2d}.txt\n')
-                    elif content != None:
+                        try:
+                            with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                                file.write('Url Subscription could not be parsed')
+                        except Exception as e:
+                            print(f"File write error: {e}")
+                        print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
+
+                    elif content is not None and content != '':
                         if add_valid(content) != '':
                             content_list.append(content)
                         else:
-                            print(f'this url failed{each_url}')
-                        file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                    'a+', encoding='utf-8')
-                        file.write(content)
-                        file.close()
-                        print(
-                            f'Writing content of {remarks} to {ids:0>2d}.txt\n')
-                    else:
-                        file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                    'a+', encoding='utf-8')
-                        file.write('Url Subscription could not be parsed')
-                        file.close()
-                        print(
-                            f'Writing error of {remarks} to {ids:0>2d}.txt\n')
+                            print(f'this url failed {each_url}')
+                        try:
+                            with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                                file.write(content)
+                        except Exception as e:
+                            print(f"File write error: {e}")
+                        print(f'Writing content of {remarks} to {ids:0>2d}.txt\n')
 
-            # it's not coming down here just adding it :)
+                    else:
+                        try:
+                            with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                                file.write('Url Subscription could not be parsed')
+                        except Exception as e:
+                            print(f"File write error: {e}")
+                        print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
+
             else:
-                each_url = url_container["url"]
+                each_url = url_container.get("url", "")
                 content = ''
                 print("gather server from " + each_url)
-                content += sub_convert.convert_remote(
-                    each_url, 'url', 'http://127.0.0.1:25500')
+                try:
+                    content = sub_convert.convert_remote(each_url, 'url', 'http://127.0.0.1:25500')
+                except Exception as e:
+                    print(f"convert_remote error: {e}")
+                    content = 'Url 解析错误'
 
                 if content == 'Url 解析错误':
-                    content = sub_convert.main(each_url, 'url', 'url')
+                    try:
+                        content = sub_convert.main(each_url, 'url', 'url')
+                    except Exception as e:
+                        print(f"sub_convert.main error: {e}")
+                        content = 'Url 解析错误'
+
                     if content != 'Url 解析错误':
                         if add_valid(content) != '':
                             content_list.append(content)
                         else:
-                            print(f'this url failed{each_url}')
-
-                        print(
-                            f'Writing content of {remarks} to {ids:0>2d}.txt\n')
+                            print(f'this url failed {each_url}')
+                        print(f'Writing content of {remarks} to {ids:0>2d}.txt\n')
                     else:
-                        print(
-                            f'Writing error of {remarks} to {ids:0>2d}.txt\n')
-                    file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                'a+', encoding='utf-8')
-                    file.write(content)
-                    file.close()
+                        print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
+
+                    try:
+                        with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                            file.write(content)
+                    except Exception as e:
+                        print(f"File write error: {e}")
+
                 elif content == 'Url 订阅内容无法解析':
-                    file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                'a+', encoding='utf-8')
-                    file.write('Url Subscription could not be parsed')
-                    file.close()
-                    print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
-                elif content != None:
-                    content_list.append(content)
-                    file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                'a+', encoding='utf-8')
-                    file.write(content)
-                    file.close()
-                    print(f'Writing content of {remarks} to {ids:0>2d}.txt\n')
-                else:
-                    file = open(f'{sub_list_path}{ids:0>2d}.txt',
-                                'a+', encoding='utf-8')
-                    file.write('Url Subscription could not be parsed')
-                    file.close()
+                    try:
+                        with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                            file.write('Url Subscription could not be parsed')
+                    except Exception as e:
+                        print(f"File write error: {e}")
                     print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
 
-            print('already gathered ' +
-                  str(''.join(content_list).split('\n').__len__()))
+                elif content is not None and content != '':
+                    content_list.append(content)
+                    try:
+                        with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                            file.write(content)
+                    except Exception as e:
+                        print(f"File write error: {e}")
+                    print(f'Writing content of {remarks} to {ids:0>2d}.txt\n')
+
+                else:
+                    try:
+                        with open(f'{sub_list_path}{ids:0>2d}.txt', 'a+', encoding='utf-8') as file:
+                            file.write('Url Subscription could not be parsed')
+                    except Exception as e:
+                        print(f"File write error: {e}")
+                    print(f'Writing error of {remarks} to {ids:0>2d}.txt\n')
+
+            print('already gathered ' + str(len(''.join(content_list).split('\n')) if content_list else 0))
             print('\n')
 
         print('Merging nodes...\n')
-        # content_raw = '\n'.join(content_list)
 
-        content_list = list(
-            filter(lambda x: x != '', ''.join(content_list).split("\n")))
-        # dup remove by string content
-#         print("it was " + str(content_list.__len__()))
-#         content_list = list(set(content_list))
-#         print("now is " + str(content_list.__len__()))
-        content_list = list(filter(lambda x: x.startswith("ssr://") or x.startswith("ss://")
-                                   or x.startswith("trojan://") or x.startswith("vmess://"), content_list))
-
-        content_list = list(
-            filter(lambda x: x.__contains__("订阅内容解析错误") == False, content_list))
+        content_list = list(filter(lambda x: x != '', ''.join(content_list).split("\n")))
+        content_list = list(filter(lambda x: x.startswith(("ssr://", "ss://", "trojan://", "vmess://")), content_list))
+        content_list = list(filter(lambda x: "订阅内容解析错误" not in x, content_list))
         content_raw = "\n".join(content_list)
 
-        print(f"it's fine till here with {content_list.__len__()} lines")
+        print(f"it's fine till here with {len(content_list)} lines")
 
-        # content_yaml = sub_convert.main(content_raw, 'content', 'content', {
-        #                                 'dup_rm_enabled': True, 'format_name_enabled': True})
-        # final_content = sub_convert.makeup(
-        #     content_raw, True, True)
-        # content_raw = sub_convert.yaml_decode(final_content)
+        try:
+            content_yaml = sub_convert.main(content_raw, 'content', 'YAML', {
+                'dup_rm_enabled': True, 'format_name_enabled': True})
+        except Exception as e:
+            print(f"YAML convert error: {e}")
+            content_yaml = ""
 
-        content_yaml = sub_convert.main(content_raw, 'content', 'YAML', {
-            'dup_rm_enabled': True, 'format_name_enabled': True})
-
-        yaml_proxies = content_yaml.split('\n')[1:]
-        temp = list(filter(lambda x: re.search(ipv6, x) ==
-                    None or re.search(ipv4, x) != None, yaml_proxies))
-        temp = list(filter(lambda x: re.search(
-            "path: /(.*?)\?(.*?)=(.*?)}", x) == None, temp))
+        yaml_proxies = content_yaml.split('\n')[1:] if content_yaml else []
+        temp = list(filter(lambda x: re.search(ipv6, x) is None or re.search(ipv4, x) is not None, yaml_proxies))
+        temp = list(filter(lambda x: re.search("path: /(.*?)\?(.*?)=(.*?)}", x) is None, temp))
 
         temp2 = temp
         temp = []
@@ -186,36 +194,33 @@ class sub_merge():
             except Exception as e:
                 print(e)
 
-        print(f"found {yaml_proxies.__len__() - temp.__len__()} bad lines :)")
-        ###temp###
-#         print(temp)
-        ##########
+        print(f"found {len(yaml_proxies) - len(temp)} bad lines :)")
+
         content_yaml = "\n".join(temp)
-        if content_yaml[-1:] == '\n':
-            content_yaml[-1:] = ''
+        if content_yaml and content_yaml.endswith('\n'):
+            content_yaml = content_yaml.rstrip('\n')
         content_yaml = 'proxies:\n' + content_yaml
 
-        # todo removed dup
-        content_raw = sub_convert.yaml_decode(content_yaml)
+        try:
+            content_raw = sub_convert.yaml_decode(content_yaml)
+        except Exception as e:
+            print(f"yaml_decode error: {e}")
+            content_raw = ""
 
-#         print('decoded content')
-#         print(content_raw)
-
-        # note removed here
-        # content_raw = list(
-        #     filter(lambda x: x != '', content_raw.split("\n")))
-        # content_raw = "\n".join(content_raw)
-
-        content_base64 = sub_convert.base64_encode(content_raw)
+        try:
+            content_base64 = sub_convert.base64_encode(content_raw)
+        except Exception as e:
+            print(f"base64_encode error: {e}")
+            content_base64 = ""
 
         content = content_raw
 
-        ##############################
-
         def content_write(file, output_type):
-            file = open(file, 'w+', encoding='utf-8')
-            file.write(output_type)
-            file.close
+            try:
+                with open(file, 'w+', encoding='utf-8') as f:
+                    f.write(output_type if output_type else '')
+            except Exception as e:
+                print(f"Write {file} error: {e}")
 
         write_list = [f'{sub_merge_path}/sub_merge.txt',
                       f'{sub_merge_path}/sub_merge_base64.txt', f'{sub_merge_path}/sub_merge_yaml.yml']
@@ -225,17 +230,22 @@ class sub_merge():
         print('Done!\n')
 
     def read_list(json_file, remote=False):  # 将 sub_list.json Url 内容读取为列表
-        with open(json_file, 'r', encoding='utf-8') as f:
-            raw_list = json.load(f)
+        try:
+            with open(json_file, 'r', encoding='utf-8') as f:
+                raw_list = json.load(f)
+        except Exception as e:
+            print(f"Read json error: {e}")
+            return []
+
         input_list = []
-        for index in range(len(raw_list)):
-            if raw_list[index]['enabled']:
-                if remote == False:
-                    urls = re.split('\|', raw_list[index]['url'])
+        for item in raw_list:
+            if item.get('enabled', False):
+                if not remote:
+                    urls = re.split(r'\|', item.get('url', ''))
                 else:
-                    urls = raw_list[index]['url']
-                raw_list[index]['url'] = urls
-                input_list.append(raw_list[index])
+                    urls = item.get('url', '')
+                item['url'] = urls
+                input_list.append(item)
         return input_list
 
     def geoip_update(url):
@@ -243,157 +253,110 @@ class sub_merge():
         try:
             request.urlretrieve(url, './utils/Country.mmdb')
             print('Success!\n')
-        except Exception:
-            print('Failed!\n')
+        except Exception as e:
+            print(f'Failed: {e}\n')
             pass
 
     def readme_update(readme_file='./README.md', sub_list=[]):  # 更新 README 节点信息
         print('Update README.md file...')
-        with open(readme_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            f.close()
-        # 获得当前名单及各仓库节点数量
-        with open('./sub/sub_merge.txt', 'r', encoding='utf-8') as f:
-            total = len(f.readlines())
-            total = f'Total number of merged nodes: `{total}`\n'
-            thanks = []
-            repo_amount_dic = {}
-            f.close()
-            for repo in sub_list:
-                # not breaking the process only because of showcase :)
+        try:
+            with open(readme_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except Exception as e:
+            print(f"Read README error: {e}")
+            return
+
+        total = 0
+        try:
+            with open('./sub/sub_merge.txt', 'r', encoding='utf-8') as f:
+                total = len(f.readlines())
+        except Exception:
+            pass
+        total_line = f'Total number of merged nodes: `{total}`\n'
+
+        thanks = []
+        for repo in sub_list:
+            if repo.get('enabled', False):
                 try:
-                    line = ''
-                    if repo['enabled'] == True:
-                        id = repo['id']
-                        remarks = repo['remarks']
-                        repo_site = repo['site']
-
-                        sub_file = f'./sub/list/{id:0>2d}.txt'
-                        with open(sub_file, 'r', encoding='utf-8') as f:
-                            proxies = f.readlines()
-                            if proxies == ['Url 解析错误'] or proxies == ['订阅内容解析错误']:
-                                amount = 0
-                            else:
-                                amount = len(proxies)
-                            f.close()
-                        repo_amount_dic.setdefault(id, amount)
-                        line = f'- [{remarks}]({repo_site}), number of nodes: `{amount}`\n'
-                        thanks.append(line)
-                    # if remarks != "mahdibland/SSAggregator":
-                    #     thanks.append(line)
-                except FileNotFoundError:
+                    id = repo['id']
+                    remarks = repo['remarks']
+                    repo_site = repo.get('site', '#')
+                    amount = 0
                     try:
-                        with open(sub_file, 'r', encoding='utf-8') as f:
-                            proxies = f.readlines()
-                            if proxies == ['Url 解析错误'] or proxies == ['订阅内容解析错误']:
-                                amount = 0
-                            else:
-                                amount = len(proxies)
-                            f.close()
-                        repo_amount_dic.setdefault(id, amount)
-                        line = f'- [{remarks}]({repo_site}), number of nodes: `{amount}`\n'
-                    except:
-                        # ignore it
+                        with open(f'./sub/list/{id:0>2d}.txt', 'r', encoding='utf-8') as f:
+                            data = f.read()
+                            if data not in ['Url 解析错误', '订阅内容解析错误']:
+                                amount = len(data.splitlines())
+                    except Exception:
                         pass
-                except:
-                    # ignore it
+                    thanks.append(f'- [{remarks}]({repo_site}), number of nodes: `{amount}`\n')
+                except Exception:
+                    continue
+
+        # Обновляем блок с быстрыми узлами
+        for idx in range(len(lines)):
+            if lines[idx].strip() == '### high-speed node':
+                while idx + 1 < len(lines) and not lines[idx+1].strip().startswith('###'):
+                    lines.pop(idx+1)
+                top_amount = 0
+                proxies = []
+                try:
+                    with open('./Eternity', 'r', encoding='utf-8') as f:
+                        proxies_base64 = f.read()
+                        proxies_raw = sub_convert.base64_decode(proxies_base64)
+                        proxies = ['    ' + p + '\n' for p in proxies_raw.splitlines() if p.strip()]
+                        top_amount = len(proxies)
+                except Exception:
                     pass
-
-        # 高速节点打印
-        for index in range(len(lines)):
-            if lines[index] == '### high-speed node\n':  # 目标行内容
-                # 清除旧内容
-                lines.pop(index+1)  # 删除节点数量
-                while lines[index+4] != '\n':
-                    lines.pop(index+4)
-
-                with open('./Eternity', 'r', encoding='utf-8') as f:
-                    proxies_base64 = f.read()
-                    proxies = sub_convert.base64_decode(proxies_base64)
-                    proxies = proxies.split('\n')
-                    proxies = ['    '+proxy for proxy in proxies]
-                    proxies = [proxy+'\n' for proxy in proxies]
-                top_amount = len(proxies)
-
-                lines.insert(
-                    index+1, f'high-speed node quantity: `{top_amount}`\n')
-                index += 4
-                for i in proxies:
-                    index += 1
-                    lines.insert(index, i)
-                break
-        # 所有节点打印
-        for index in range(len(lines)):
-            if lines[index] == '### all nodes\n':  # 目标行内容
-                # 清除旧内容
-                lines.pop(index+1)  # 删除节点数量
-
-                # with open('./sub/sub_merge.txt', 'r', encoding='utf-8') as f:
-                with open('./sub/sub_merge_yaml.yml', 'r', encoding='utf-8') as f:
-                    proxies = f.read()
-                    proxies = proxies.split('\n')
-                    top_amount = len(proxies) - 1
-                    f.close()
-                # if it's not yaml method we need to add 1 to the top amount
-                lines.insert(
-                    index+1, f'merge nodes w/o dup: `{top_amount}`\n')
-                """
-                with open('./sub/sub_merge.txt', 'r', encoding='utf-8') as f:
-                    proxies = f.read()
-                    proxies = proxies.split('\n')
-                    proxies = ['    '+proxy for proxy in proxies]
-                    proxies = [proxy+'\n' for proxy in proxies]
-                top_amount = len(proxies) - 1
-                
-                lines.insert(index+1, f'合并节点数量: `{top_amount}`\n')
-                
-                index += 5
-                for i in proxies:
-                    index += 1
-                    lines.insert(index, i)
-                """
-                break
-        # 节点来源打印
-        for index in range(len(lines)):
-            if lines[index] == '### node sources\n':
-                # 清除旧内容
-                while lines[index+1] != '\n':
-                    lines.pop(index+1)
-
-                for i in thanks:
-                    index += 1
-                    lines.insert(index, i)
+                lines.insert(idx+1, f'high-speed node quantity: `{top_amount}`\n')
+                lines[idx+2:idx+2] = proxies
                 break
 
-        # 写入 README 内容
-        with open(readme_file, 'w', encoding='utf-8') as f:
-            data = ''.join(lines)
+        # Обновляем блок со всеми узлами
+        for idx in range(len(lines)):
+            if lines[idx].strip() == '### all nodes':
+                while idx + 1 < len(lines) and not lines[idx+1].strip().startswith('###'):
+                    lines.pop(idx+1)
+                total_all = 0
+                try:
+                    with open('./sub/sub_merge_yaml.yml', 'r', encoding='utf-8') as f:
+                        total_all = max(0, len(f.readlines()) - 1)
+                except Exception:
+                    pass
+                lines.insert(idx+1, f'merge nodes w/o dup: `{total_all}`\n')
+                break
+
+        # Обновляем блок источников
+        for idx in range(len(lines)):
+            if lines[idx].strip() == '### node sources':
+                while idx + 1 < len(lines) and not lines[idx+1].strip().startswith('###') and lines[idx+1].strip() != '':
+                    lines.pop(idx+1)
+                for line in reversed(thanks):
+                    lines.insert(idx+1, line)
+                break
+
+        # Записываем обратно
+        try:
+            with open(readme_file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
             print('Finish!\n')
-            f.write(data)
+        except Exception as e:
+            print(f"Write README error: {e}")
 
 
 if __name__ == '__main__':
-    update_url.update_main(use_airport=False, airports_id=[
-                           5], sub_list_json="./sub/sub_list.json")
-    sub_merge.geoip_update(
-        'https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb')
+    update_url.update_main(use_airport=False, airports_id=[5], sub_list_json="./sub/sub_list.json")
+    sub_merge.geoip_update('https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb')
 
     sub_list = sub_merge.read_list(sub_list_json)
-    sub_list_remote = sub_merge.read_list(sub_list_json, True)
+    # sub_list_remote = sub_merge.read_list(sub_list_json, True)
 
-    # default method
+    # Стандартные методы — оставил как комментарии, как у автора
     # sub_merge.sub_merge(sub_list)
     # sub_merge.readme_update(readme, sub_list)
-
-    # fixed convertor in default method
     # subs.get_subs(sub_list)
-    # sub_merge.readme_update(readme, sub_list)
-
-    # using corresponding proxies method
     # subs.get_subs_v2(sub_list)
-    # sub_merge.readme_update(readme, sub_list)
 
-    # eject sub converting using local method and using sub convertor instead (only yaml available there is no
-    # base64 or mixed type proxy in this method and other types will be handle using other workflows)
-    subs.get_subs_v3(list(filter(lambda x: x['id'] != 5, sub_list)))
+    # Основной рабочий метод из кода
+    subs.get_subs_v3([x for x in sub_list if x.get('id') != 5])
     sub_merge.readme_update(readme, sub_list)
