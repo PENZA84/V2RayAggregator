@@ -261,13 +261,13 @@ def makeup(input, dup_rm_enabled=False, format_name_enabled=False):
                     ip = socket.gethostbyname(server)
                 except Exception:
                     ip = server
-            with geoip2.database.Reader('./utils/Country.mmdb') as ip_reader:
-                try:
+            try:
+                with geoip2.database.Reader('./utils/Country.mmdb') as ip_reader:
                     response = ip_reader.country(ip)
                     country_code = response.country.iso_code
-                except Exception:
-                    ip = '0.0.0.0'
-                    country_code = 'NOWHERE'
+            except Exception:
+                ip = '0.0.0.0'
+                country_code = 'NOWHERE'
             if country_code == 'CLOUDFLARE':
                 country_code = 'RELAY'
             elif country_code == 'PRIVATE':
