@@ -3,6 +3,7 @@ import base64
 import os
 import time
 
+# 📌 Пути — точно как у тебя настроено
 out_json = './out.json'
 
 sub_all_base64 = "./sub/sub_merge_base64.txt"
@@ -14,120 +15,116 @@ Eternity_Base = "./EternityBase"
 splitted_output = "./sub/splitted/"
 
 
-def read_json(file):  # 将 out.json 内容读取为列表
-    while os.path.isfile(file) == False:
-        # log
-        #file_list = os.listdir("./")
-        #print(file_list)
-        print('Awaiting speedtest complete')
+def read_json(file):
+    """Чтение файла результатов теста — ждём пока появится, если ещё идёт проверка"""
+    while not os.path.isfile(file):
+        print('⏳ Ожидаю завершения теста скорости...')
         time.sleep(30)
     with open(file, 'r', encoding='utf-8') as f:
-        print('Reading out.json')
+        print('📖 Читаю результат: out.json')
         proxies_all = json.load(f)["nodes"]
         f.close()
     return proxies_all
 
 
-def output(list, num):
-    # sort base their avg speed rather than max speed which is default option
-    list = sorted(list, key=lambda x: x['avg_speed'], reverse=True)
+def output(proxy_list, num):
+    """Обработка, сортировка, разделение по протоколам и сохранение во все файлы"""
+    # Сортируем по СРЕДНЕЙ скорости (как у тебя было, а не по максимальной)
+    proxy_list = sorted(proxy_list, key=lambda x: x['avg_speed'], reverse=True)
 
-    # log
-    print(list[0])
-    print(list[-1])
+    # Логи для контроля
+    print("🔝 Лучший узел:", proxy_list[0])
+    print("🔚 Последний узел:", proxy_list[-1])
 
-    def arred(x, n): return x*(10**n)//1/(10**n)
-    print(str(list[0]))
-    output_list = []
-    for item in list:
-        info = "id: %s | remarks: %s | protocol: %s | ping: %s MS | avg_speed: %s MB | max_speed: %s MB | Link: %s\n" % (str(item["id"]), item["remarks"], item["protocol"], str(
-            item["ping"]), str(arred(item["avg_speed"] * 0.00000095367432, 3)), str(arred(item["max_speed"] * 0.00000095367432, 3)), item["link"])
-        output_list.append(info)
-    with open('./LogInfo.txt', 'w') as f1:
-        f1.writelines(output_list)
-        f1.close()
-        print('Write Log Success!')
+    # Вспомогательная функция для округления
+    def arred(x, n): return x * (10 ** n) // 1 / (10 ** n)
 
-    output_list = []
-    for index in range(list.__len__()):
-        proxy = list[index]['link']
-        output_list.append(proxy)
+    # 📝 Формируем лог с полной информацией по каждому узлу
+    log_lines = []
+    for item in proxy_list:
+        info = (
+            f"id: {item['id']} | "
+            f"метка: {item['remarks']} | "
+            f"протокол: {item['protocol']} | "
+            f"задержка: {item['ping']} мс | "
+            f"средняя скорость: {arred(item['avg_speed'] * 0.00000095367432, 3)} МБ/с | "
+            f"макс скорость: {arred(item['max_speed'] * 0.00000095367432, 3)} МБ/с | "
+            f"ссылка: {item['link']}\n"
+        )
+        log_lines.append(info)
 
-    # writing content as mixed and base64
-    content = '\n'.join(output_list)
-    content_base64 = base64.b64encode(
-        '\n'.join(output_list).encode('utf-8')).decode('ascii')
-    content_base64_part = base64.b64encode(
-        '\n'.join(output_list[0:num]).encode('utf-8')).decode('ascii')
+    with open('./LogInfo.txt', 'w', encoding='utf-8') as f1:
+        f1.writelines(log_lines)
+        print('✅ Лог информации сохранён: LogInfo.txt')
 
-    # spliting different protocols
+    # 📋 Вытаскиваем только ссылки на подключение
+    link_list = [item['link'] for item in proxy_list]
+
+    # Кодируем в Base64 (всё и часть топовых)
+    content_all = '\n'.join(link_list)
+    content_all_b64 = base64.b64encode(content_all.encode('utf-8')).decode('ascii')
+    content_part = '\n'.join(link_list[:num])
+    content_part_b64 = base64.b64encode(content_part.encode('utf-8')).decode('ascii')
+
+    # 📂 Разделяем узлы по протоколам в отдельные файлы
     os.makedirs(splitted_output, exist_ok=True)
-    vmess_outputs = []
-    trojan_outputs = []
-    ssr_outputs = []
-    ss_outputs = []
+    vmess = []
+    trojan = []
+    ssr = []
+    ss = []
 
-    for output in output_list:
-        if str(output).startswith("vmess://"):
-            vmess_outputs.append(output)
-        if str(output).startswith("trojan://"):
-            trojan_outputs.append(output)
-        if str(output).startswith("ssr://"):
-            ssr_outputs.append(output)
-        if str(output).startswith("ss://"):
-            ss_outputs.append(output)
+    for link in link_list:
+        if link.startswith("vmess://"):
+            vmess.append(link)
+        elif link.startswith("trojan://"):
+            trojan.append(link)
+        elif link.startswith("ssr://"):
+            ssr.append(link)
+        elif link.startswith("ss://"):
+            ss.append(link)
 
-    with open(splitted_output.__add__("vmess.txt"), 'w') as f:
-        vmess_content = "\n".join(vmess_outputs)
-        f.write(vmess_content)
-        print('Write vmess splitted Success!')
-        f.close()
+    with open(os.path.join(splitted_output, "vmess.txt"), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(vmess))
+        print('✅ vmess.txt готов')
 
-    with open(splitted_output.__add__("trojan.txt"), 'w') as f:
-        trojan_content = "\n".join(trojan_outputs)
-        f.write(trojan_content)
-        print('Write trojan splitted Success!')
-        f.close()
+    with open(os.path.join(splitted_output, "trojan.txt"), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(trojan))
+        print('✅ trojan.txt готов')
 
-    with open(splitted_output.__add__("ssr.txt"), 'w') as f:
-        ssr_content = "\n".join(ssr_outputs)
-        f.write(ssr_content)
-        print('Write ssr splitted Success!')
-        f.close()
+    with open(os.path.join(splitted_output, "ssr.txt"), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(ssr))
+        print('✅ ssr.txt готов')
 
-    with open(splitted_output.__add__("ss.txt"), 'w') as f:
-        ss_content = "\n".join(ss_outputs)
-        f.write(ss_content)
-        print('Write ss splitted Success!')
-        f.close()
+    with open(os.path.join(splitted_output, "ss.txt"), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(ss))
+        print('✅ ss.txt готов')
 
-    ##################
-
+    # 💾 Записываем во все основные файлы
     with open(sub_all_base64, 'w+', encoding='utf-8') as f:
-        f.write(content_base64)
-        print('Write All Base64 Success!')
-        f.close()
-    with open(Eternity_file_base64, 'w+', encoding='utf-8') as f:
-        f.write(content_base64_part)
-        print('Write Part Base64 Success!')
-        f.close()
+        f.write(content_all_b64)
+        print('✅ sub_merge_base64.txt обновлён')
 
-    with open(sub_all, 'w') as f:
-        f.write(content)
-        print('Write All Success!')
-        f.close()
-    with open(Eternity_Base, 'w') as f:
-        f.write(content)
-        print('Write Base Success!')
-        f.close()
-    with open(Eternity_file, 'w') as f:
-        f.write('\n'.join(output_list[0:num]))
-        print('Write Part Base Success!')
-        f.close()
-    return content
+    with open(Eternity_file_base64, 'w+', encoding='utf-8') as f:
+        f.write(content_part_b64)
+        print('✅ Eternity (Base64) готов')
+
+    with open(sub_all, 'w', encoding='utf-8') as f:
+        f.write(content_all)
+        print('✅ sub_merge.txt обновлён')
+
+    with open(Eternity_Base, 'w', encoding='utf-8') as f:
+        f.write(content_all)
+        print('✅ EternityBase готов')
+
+    with open(Eternity_file, 'w', encoding='utf-8') as f:
+        f.write(content_part)
+        print('✅ Eternity.txt готов')
+
+    return content_all
 
 
 if __name__ == '__main__':
-    num = 200
-    value = read_json(out_json)
-    output(value, value.__len__() if value.__len__() <= num else num)
+    num_top = 200  # Сколько лучших узлов оставляем в выборке
+    proxies_data = read_json(out_json)
+    take_num = num_top if len(proxies_data) > num_top else len(proxies_data)
+    output(proxies_data, take_num)
