@@ -750,9 +750,9 @@ def convert_remote(url='', output_type='clash', host='http://127.0.0.1:25500'):
             resp = requests.get(converted_url)
         except Exception as err:
             print(err)
-            return 'Url 解析 ошибка'
+            return 'Url 解析错误'
         if resp.text == 'No nodes were found!':
-            sub_content = 'Url 解析 ошибка'
+            sub_content = 'Url 解析错误'
         else:
             sub_content = base64_encode(resp.text)
     elif output_type == 'url':
@@ -762,9 +762,9 @@ def convert_remote(url='', output_type='clash', host='http://127.0.0.1:25500'):
             resp = requests.get(converted_url)
         except Exception as err:
             print(err)
-            return 'Url 解析 ошибка'
+            return 'Url 解析错误'
         if resp.text == 'No nodes were found!':
-            sub_content = 'Url 解析 ошибка'
+            sub_content = 'Url 解析错误'
         else:
             sub_content = resp.text
 
