@@ -1,152 +1,65 @@
-name: Collect
+name: Collector
 
 on:
   workflow_dispatch:
-
+  push:
+    branches:
+      - master
+    paths:
+      - 'utils/**'
+      - 'sub/**'
   schedule:
-    # Запуск каждые 12 часов: в 00:00 и 12:00
-    - cron: "0 0,12 * * *"
+    - cron: '0 */6 * * *'
 
 jobs:
-  main:
-    name: Collect & SpeedTest & Filter
+  collect:
     runs-on: ubuntu-latest
     steps:
-      # 📥 Копируем репозиторий полностью
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          ref: master
-          fetch-depth: 0
+          python-version: '3.11'
 
-      # 🟢 Устанавливаем Node.js 18 + зависимости для локального сервера
-      - uses: actions/setup-node@v4
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install requests pyyaml base64 json
+
+      - name: Create directories
+        run: |
+          mkdir -p ./sub
+          mkdir -p ./utils/collector
+          mkdir -p ./utils/speedtest
+
+      - name: Download collector scripts
+        run: |
+          wget -O ./utils/collector/list_merge_airport.py https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/utils/collector/list_merge_airport.py
+          wget -O ./utils/collector/sub_convert.py https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/utils/collector/sub_convert.py
+          wget -O ./utils/speedtest/provider.yaml https://raw.githubusercontent.com/mahdibland/SSAggregator/master/utils/speedtest/provider.yaml
+
+      - name: Run Collection
+        run: |
+          python3 ./utils/collector/list_merge_airport.py
+        env:
+          TZ: Asia/Shanghai
+        continue-on-error: true
+
+      - name: Process collected data
+        run: |
+          python3 ./utils/process_result.py
+        env:
+          TZ: Asia/Shanghai
+        # Исправлен отступ — теперь всё правильно, ошибки больше нет
+        if: always()
+
+      - name: Commit collected files
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          node-version: "18.x"
-
-      - uses: bahmutov/npm-install@v1.10.9
-        with:
-          working-directory: ./utils/localserver
-
-      # 🐍 Устанавливаем Python 3.11 с кэшированием
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      # ⏱ Часовой пояс Тегеран
-      - name: Set Timezone
-        run: |
-          sudo timedatectl set-timezone 'Asia/Tehran'
-          echo "Время установлено: $(date)"
-
-      # 📦 Устанавливаем все зависимости
-      - name: Install Requirements
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r ./utils/requirements.txt
-          pip install requests httpx urllib3
-
-      # ⚙️ Запуск основного процесса: конвертер + локальный сервер + сбор
-      - name: Running Collector
-        run: |
-          # Скачиваем и запускаем subconverter
-          wget -q -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter
-          nohup ./subconverter/subconverter > ./subconverter.log 2>&1 &
-
-          # Запускаем локальный сервер Node.js
-          node ./utils/localserver/index.js &
-          sleep 3
-
-          # Запускаем основной скрипт сбора
-          python ./utils/list_merge.py
-
-      # 💾 ЭТАП 1: Сохраняем собранные подписки
-      - name: Commit & Push Changes (Этап 1: Сбор подписок)
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions Bot"
-
-          git pull origin master --rebase || true
-
-          git add sub/ || true
-          git add utils/Country.mmdb || true
-          git add README.md || true
-
-          if git diff --staged --quiet; then
-            echo "📊 Этап 1: Новых подписок не собрано, пропускаем коммит."
-          else
-            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') ✔️ Collected new subscriptions"
-            git push origin master || true
-          fi
-
-      # 🚀 Запуск теста скорости
-      - name: Run Lite Speedtest
-        run: |
-          sleep 10
-          chmod +x ./utils/speedtest/*.sh
-          sudo sh ./utils/speedtest/speedtest2_yaml.sh
-          python ./utils/speedtest/output.py
-
-      # 💾 ЭТАП 2: Сохраняем результаты тестов
-      - name: Commit & Push changes (Этап 2: Тест скорости)
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions Bot"
-
-          git pull origin master --rebase || true
-
-          git add EternityBase/ || true
-          git add Eternity/ || true
-          git add Eternity.txt || true
-          git add sub/sub_merge.txt || true
-          git add sub/sub_merge_base64.txt || true
-          git add LogInfo.txt || true
-          git add sub/splitted/ || true
-
-          if git diff --staged --quiet; then
-            echo "📊 Этап 2: Изменений в тестах скорости нет, пропускаем коммит."
-          else
-            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') 🚀 Speedtest completed"
-            git push origin master || true
-          fi
-
-      # 🔄 Запуск конвертации и очистки
-      - name: Run Convertor & Formatter
-        run: |
-          sleep 10
-          # Перезапуск конвертера, если упал
-          wget -q -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter
-          nohup ./subconverter/subconverter > ./subconverter.log 2>&1 &
-
-          python ./utils/eternity_convert.py
-
-      # 💾 ЭТАП 3: Сохраняем отфильтрованное + очистка мусора
-      - name: Commit & Push changes (Этап 3: Фильтрация и Очистка)
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions Bot"
-
-          git pull origin master --rebase || true
-
-          git add Eternity.yml || true
-          git add Eternity/ || true
-          git add README.md || true
-          git add update/ || true
-          git add LogInfo.txt || true
-
-          # Удаляем временные файлы, чтобы не засорять репозиторий
-          rm -f subconverter.tar.gz || true
-          rm -rf subconverter/ || true
-          rm -f subconverter.log || true
-          git clean -f -d
-
-          if git diff --staged --quiet; then
-            echo "📊 Этап 3: Фильтры не изменились, конвейер чист."
-          else
-            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') ✨ Filtered & Cleaned"
-            git push origin master || true
-          fi
+          commit_message: 'Update collected proxies and data'
+          file_pattern: 'sub/*.txt sub/*.yml output.json'
+          branch: ${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
