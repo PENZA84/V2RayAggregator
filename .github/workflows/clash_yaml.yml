@@ -32,7 +32,7 @@ jobs:
       - name: Install Requirements
         run: |
           python3 -m pip install --upgrade pip
-          pip install pyyaml requests base64 json
+          pip install pyyaml requests json
 
       - name: Prepare directories
         run: |
@@ -63,7 +63,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'Update output.py and results'
-          file_pattern: 'sub/*.yml output.json speedtest.log'
+          file_pattern: 'sub/*.yml sub/*base64.txt output.json speedtest.log'
           branch: ${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
