@@ -106,146 +106,135 @@ class subs_function:
         excluded_proxies = []
 
         for (index, c_proxy) in enumerate(corresponding_proxies):
-            proxy = c_proxy['c_clash']
-            # decoded_yaml = yaml.safe_load(proxy)
-            # # for safety i add both scenario
-            # if type(decoded_yaml) == list:
-            #     proxy = decoded_yaml[0]
-            # else:
-            #     proxy = decoded_yaml
+            try:
+                proxy = c_proxy['c_clash']
+                if type(proxy) == list and len(proxy) > 0:
+                    proxy = proxy[0]
 
-            if type(proxy) == list:
-                proxy = proxy[0]
+                server = str(proxy.get('server', ''))
+                if not server:
+                    continue
 
-            server = str(proxy['server'])
-
-            if server.replace('.', '').isdigit():
-                ip = server
-            else:
-                try:
-                    # https://cloud.tencent.com/developer/article/1569841
-                    ip = socket.gethostbyname(server)
-                except Exception:
+                if server.replace('.', '').isdigit():
                     ip = server
+                else:
+                    try:
+                        # https://cloud.tencent.com/developer/article/1569841
+                        ip = socket.gethostbyname(server)
+                    except Exception:
+                        ip = server
 
-            with geoip2.database.Reader('./utils/Country.mmdb') as ip_reader:
+                country_code = 'NOWHERE'
                 try:
-                    response = ip_reader.country(ip)
-                    country_code = response.country.iso_code
+                    with geoip2.database.Reader('./utils/Country.mmdb') as ip_reader:
+                        response = ip_reader.country(ip)
+                        country_code = response.country.iso_code or 'NOWHERE'
                 except Exception:
-                    ip = '0.0.0.0'
-                    country_code = 'NOWHERE'
+                    pass
 
-            if country_code == 'CLOUDFLARE':
-                country_code = 'RELAY'
-            elif country_code == 'PRIVATE':
-                country_code = 'RELAY'
+                if country_code == 'CLOUDFLARE':
+                    country_code = 'RELAY'
+                elif country_code == 'PRIVATE':
+                    country_code = 'RELAY'
+                    
+                name_emoji = emoji.get(country_code, emoji['NOWHERE'])
+
+                if len(corresponding_proxies) >= 999:
+                    proxy['name'] = f'{name_emoji}{country_code}-{ip}-{index:0>4d}'
+                elif len(corresponding_proxies) <= 999 and len(corresponding_proxies) > 99:
+                    proxy['name'] = f'{name_emoji}{country_code}-{ip}-{index:0>3d}'
+                else:
+                    proxy['name'] = f'{name_emoji}{country_code}-{ip}-{index:0>2d}'
+
+                corresponding_proxies[index]["c_clash"] = proxy
                 
-            if country_code in emoji:
-                name_emoji = emoji[country_code]
-            else:
-                name_emoji = emoji['NOWHERE']
+                if country_code in exclude_list_of_countries or name_emoji == emoji['NOWHERE']:
+                    excluded_proxies.append(c_proxy)
 
-            # proxy_index = proxies_list.index(proxy)
-            if len(corresponding_proxies) >= 999:
-                proxy['name'] = f'{name_emoji}{country_code}-{ip}-{index:0>4d}'
-            elif len(corresponding_proxies) <= 999 and len(corresponding_proxies) > 99:
-                proxy['name'] = f'{name_emoji}{country_code}-{ip}-{index:0>3d}'
-            elif len(corresponding_proxies) <= 99:
-                proxy['name'] = f'{name_emoji}{country_code}-{ip}-{index:0>2d}'
-
-            # corresponding_proxies[index]["c_clash"] = f"  - {proxy}"
-            corresponding_proxies[index]["c_clash"] = proxy
-            
-            # add exclude list
-            if country_code in exclude_list_of_countries or name_emoji == emoji['NOWHERE']:
-                excluded_proxies.append(c_proxy)
+            except Exception as e:
+                print(f"Error processing proxy at index {index}: {e}")
+                continue
 
         return list(filter(lambda c: c not in excluded_proxies, corresponding_proxies))
 
     def fix_proxies_duplication(corresponding_proxies: []):
-        print("\nBefore was " + str(corresponding_proxies.__len__()) + "\n")
+        print("\nBefore was " + str(len(corresponding_proxies)) + "\n")
         begin = 0
         raw_length = len(corresponding_proxies)
         length = len(corresponding_proxies)
+        
         while begin < length:
             if (begin + 1) == 1:
                 print(f'\n-----Restart-----\nStarting Quantity {length}')
             elif (begin + 1) % 100 == 0:
-                print(
-                    f'Current Benchmark {begin + 1}-----Current Quantity {length}')
+                print(f'Current Benchmark {begin + 1}-----Current Quantity {length}')
             elif (begin + 1) == length and (begin + 1) % 100 != 0:
                 repetition = raw_length - length
-                print(
-                    f'Current Benchmark {begin + 1}-----Current Quantity {length}\nNumber of Repetition {repetition}\n-----Deduplication Completed-----\n')
-            # proxy_compared = yaml.safe_load(
-            #     corresponding_proxies[begin]["c_clash"])
-            proxy_compared = corresponding_proxies[begin]["c_clash"]
-            if type(proxy_compared) == list:
-                proxy_compared = proxy_compared[0]
+                print(f'Current Benchmark {begin + 1}-----Current Quantity {length}\nNumber of Repetition {repetition}\n-----Deduplication Completed-----\n')
 
-            begin_2 = begin + 1
-            while begin_2 <= (length - 1):
-                check = False
-                # correspond_next_proxy = yaml.safe_load(
-                #     corresponding_proxies[begin_2]["c_clash"])
-                correspond_next_proxy = corresponding_proxies[begin_2]["c_clash"]
-                if type(correspond_next_proxy) == list:
-                    correspond_next_proxy = correspond_next_proxy[0]
-                if proxy_compared['server'] == correspond_next_proxy['server'] and proxy_compared['port'] == correspond_next_proxy['port']:
-                    check = True
-                    if 'net' in correspond_next_proxy and 'net' in proxy_compared:
-                        if proxy_compared['net'] != correspond_next_proxy['net']:
-                            check = False
+            try:
+                proxy_compared = corresponding_proxies[begin]["c_clash"]
+                if type(proxy_compared) == list and len(proxy_compared) > 0:
+                    proxy_compared = proxy_compared[0]
+                if not isinstance(proxy_compared, dict):
+                    begin += 1
+                    continue
 
-                    if 'tls' in correspond_next_proxy and 'tls' in proxy_compared:
-                        if proxy_compared['tls'] != correspond_next_proxy['tls']:
-                            check = False
+                begin_2 = begin + 1
+                while begin_2 < length:
+                    check = False
+                    try:
+                        correspond_next_proxy = corresponding_proxies[begin_2]["c_clash"]
+                        if type(correspond_next_proxy) == list and len(correspond_next_proxy) > 0:
+                            correspond_next_proxy = correspond_next_proxy[0]
+                        if not isinstance(correspond_next_proxy, dict):
+                            begin_2 += 1
+                            continue
 
-                    #if 'id' in correspond_next_proxy and 'id' in proxy_compared:
-                    #    if proxy_compared['id'] != correspond_next_proxy['id']:
-                    #        check = False
+                        if proxy_compared.get('server') == correspond_next_proxy.get('server') and proxy_compared.get('port') == correspond_next_proxy.get('port'):
+                            check = True
+                            if 'net' in correspond_next_proxy and 'net' in proxy_compared:
+                                if proxy_compared['net'] != correspond_next_proxy['net']:
+                                    check = False
 
-                    if 'ws-opts' in correspond_next_proxy and 'ws-opts' in proxy_compared:
-                        if proxy_compared['ws-opts'] != correspond_next_proxy['ws-opts']:
-                            check = False
+                            if 'tls' in correspond_next_proxy and 'tls' in proxy_compared:
+                                if proxy_compared['tls'] != correspond_next_proxy['tls']:
+                                    check = False
 
-                    #if 'uuid' in correspond_next_proxy and 'uuid' in proxy_compared:
-                    #    if proxy_compared['uuid'] != correspond_next_proxy['uuid']:
-                    #        check = False
+                            if 'ws-opts' in correspond_next_proxy and 'ws-opts' in proxy_compared:
+                                if str(proxy_compared['ws-opts']) != str(correspond_next_proxy['ws-opts']):
+                                    check = False
 
-                    #if 'password' in correspond_next_proxy and 'password' in proxy_compared:
-                    #    if proxy_compared['password'] != correspond_next_proxy['password']:
-                    #        check = False
+                            if 'cipher' in correspond_next_proxy and 'cipher' in proxy_compared:
+                                if proxy_compared['cipher'] != correspond_next_proxy['cipher']:
+                                    check = False
 
-                    if 'cipher' in correspond_next_proxy and 'cipher' in proxy_compared:
-                        if proxy_compared['cipher'] != correspond_next_proxy['cipher']:
-                            check = False
+                            if 'type' in correspond_next_proxy and 'type' in proxy_compared:
+                                if proxy_compared['type'] != correspond_next_proxy['type']:
+                                    check = False
 
-                    if 'type' in correspond_next_proxy and 'type' in proxy_compared:
-                        if proxy_compared['type'] != correspond_next_proxy['type']:
-                            check = False
+                            if 'network' in correspond_next_proxy and 'network' in proxy_compared:
+                                if proxy_compared['network'] != correspond_next_proxy['network']:
+                                    check = False
 
-                    # due to conversion we could have udp off or on for same proxies
-                    # if 'udp' in correspond_next_proxy and 'udp' in proxy_compared:
-                    #     if proxy_compared['udp'] != correspond_next_proxy['udp']:
-                    #         check = False
+                            if 'obfs' in correspond_next_proxy and 'obfs' in proxy_compared:
+                                if proxy_compared['obfs'] != correspond_next_proxy['obfs']:
+                                    check = False
 
-                    if 'network' in correspond_next_proxy and 'network' in proxy_compared:
-                        if proxy_compared['network'] != correspond_next_proxy['network']:
-                            check = False
+                        if check:
+                            corresponding_proxies.pop(begin_2)
+                            length -= 1
+                        else:
+                            begin_2 += 1
 
-                    if 'obfs' in correspond_next_proxy and 'obfs' in proxy_compared:
-                        if proxy_compared['obfs'] != correspond_next_proxy['obfs']:
-                            check = False
+                    except Exception as e:
+                        print(f"Error comparing proxies at {begin_2}: {e}")
+                        begin_2 += 1
 
-                    if check:
-                        corresponding_proxies.pop(begin_2)
-                        length -= 1
+            except Exception as e:
+                print(f"Error processing proxy at {begin}: {e}")
 
-                begin_2 += 1
             begin += 1
 
-        print("\nNow is " + str(corresponding_proxies.__len__()) + "\n")
-
+        print("\nNow is " + str(len(corresponding_proxies)) + "\n")
         return corresponding_proxies
