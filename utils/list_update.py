@@ -10,7 +10,7 @@ from urllib.parse import quote
 # 文件路径定义
 # sub_list_json = './sub/sub_list.json'
 
-def url_updated(url):  # 判断远程远程链接是否已经更新
+def url_updated(url):  # 判断远程远程链接是否 уже обновлена
     s = requests.Session()
     s.mount('http://', HTTPAdapter(max_retries=2))
     s.mount('https://', HTTPAdapter(max_retries=2))
@@ -19,175 +19,162 @@ def url_updated(url):  # 判断远程远程链接是否已经更新
         status = resp.status_code
     except Exception:
         status = 404
-    if status == 200:
-        url_updated = True
-    else:
-        url_updated = False
-    return url_updated
+    return status == 200
 
 
 class update_url():
 
-    def update_main(use_airport=False, airports_id: [] = [5], sub_list_json= './sub/sub_list.json'):
-        with open(sub_list_json, 'r', encoding='utf-8') as f:  # 载入订阅链接
-            raw_list = json.load(f)
-            f.close()
-            
+    def update_main(use_airport=False, airports_id: [] = [5], sub_list_json='./sub/sub_list.json'):
+        try:
+            with open(sub_list_json, 'r', encoding='utf-8') as f:  # Загружаем список подписок
+                raw_list = json.load(f)
+        except Exception as e:
+            print(f"Ошибка чтения {sub_list_json}: {e}")
+            return
+
         for sub in raw_list:
-            id = sub['id']
-            current_url = sub['url']
-            if use_airport == False:
-                if airports_id.__contains__(id) == False and sub['update_method'] != 'update_airports':
-                    try:
-                        if sub['update_method'] != 'auto' and sub['enabled'] == True:
-                            print(f'Finding available update for ID{id}')
-                            if sub['update_method'] == 'change_date':
-                                new_url = update_url.change_date(
-                                    id, current_url)
+            sub_modified = False
+            id = sub.get('id')
+            current_url = sub.get('url', '')
+
+            try:
+                if not use_airport:
+                    if id not in airports_id and sub.get('update_method') != 'update_airports':
+                        if sub.get('update_method') != 'auto' and sub.get('enabled', False):
+                            print(f'Поиск обновлений для ID {id}')
+                            if sub.get('update_method') == 'change_date':
+                                new_url = update_url.change_date(id, current_url)
                                 if new_url == current_url:
-                                    print(f'No available update for ID{id}\n')
+                                    print(f'Обновлений для ID {id} не найдено\n')
                                 else:
                                     sub['url'] = new_url
-                                    print(f'ID{id} url updated to {new_url}\n')
-                            elif sub['update_method'] == 'page_release':
+                                    sub_modified = True
+                                    print(f'ID {id} обновлен: {new_url}\n')
+                            elif sub.get('update_method') == 'page_release':
                                 new_url = update_url.find_link(id, current_url)
                                 if new_url == current_url:
-                                    print(f'No available update for ID{id}\n')
+                                    print(f'Обновлений для ID {id} не найдено\n')
                                 else:
                                     sub['url'] = new_url
-                                    print(f'ID{id} url updated to {new_url}\n')
-                            elif sub['update_method'] == 'update_airports':
-                                new_url = update_url.update_airports(
-                                    id, current_url)
+                                    sub_modified = True
+                                    print(f'ID {id} обновлен: {new_url}\n')
+                            elif sub.get('update_method') == 'update_airports':
+                                new_url = update_url.update_airports(id, current_url)
                                 if new_url == current_url:
-                                    print(f'No available update for ID{id}\n')
+                                    print(f'Обновлений для ID {id} не найдено\n')
                                 else:
                                     sub['url'] = new_url
-                                    print(f'ID{id} url updated to {new_url}\n')
-
-                    except KeyError:
-                        print(
-                            f'{id} Url not changed! Please define update method.')
-
-            else:
-                if airports_id.__contains__(id) == True:
-                    try:
-                        if sub['update_method'] != 'auto' and sub['enabled'] == True:
-                            print(f'Finding available update for ID{id}')
-                            if sub['update_method'] == 'change_date':
-                                new_url = update_url.change_date(
-                                    id, current_url)
+                                    sub_modified = True
+                                    print(f'ID {id} обновлен: {new_url}\n')
+                else:
+                    if id in airports_id:
+                        if sub.get('update_method') != 'auto' and sub.get('enabled', False):
+                            print(f'Поиск обновлений для ID {id}')
+                            if sub.get('update_method') == 'change_date':
+                                new_url = update_url.change_date(id, current_url)
                                 if new_url == current_url:
-                                    print(f'No available update for ID{id}\n')
+                                    print(f'Обновлений для ID {id} не найдено\n')
                                 else:
                                     sub['url'] = new_url
-                                    print(f'ID{id} url updated to {new_url}\n')
-                            elif sub['update_method'] == 'page_release':
+                                    sub_modified = True
+                                    print(f'ID {id} обновлен: {new_url}\n')
+                            elif sub.get('update_method') == 'page_release':
                                 new_url = update_url.find_link(id, current_url)
                                 if new_url == current_url:
-                                    print(f'No available update for ID{id}\n')
+                                    print(f'Обновлений для ID {id} не найдено\n')
                                 else:
                                     sub['url'] = new_url
-                                    print(f'ID{id} url updated to {new_url}\n')
-                            elif sub['update_method'] == 'update_airports':
-                                new_url = update_url.update_airports(
-                                    id, current_url)
+                                    sub_modified = True
+                                    print(f'ID {id} обновлен: {new_url}\n')
+                            elif sub.get('update_method') == 'update_airports':
+                                new_url = update_url.update_airports(id, current_url)
                                 if new_url == current_url:
-                                    print(f'No available update for ID{id}\n')
+                                    print(f'Обновлений для ID {id} не найдено\n')
                                 else:
                                     sub['url'] = new_url
-                                    print(f'ID{id} url updated to {new_url}\n')
+                                    sub_modified = True
+                                    print(f'ID {id} обновлен: {new_url}\n')
+            except KeyError:
+                print(f'ID {id}: метод обновления не задан, ссылка не изменена\n')
 
-                    except KeyError:
-                        print(
-                            f'{id} Url not changed! Please define update method.')
-
-            updated_list = json.dumps(
-                raw_list, sort_keys=False, indent=2, ensure_ascii=False)
-            file = open(sub_list_json, 'w', encoding='utf-8')
-            file.write(updated_list)
-            file.close()
+            if sub_modified:
+                updated_list = json.dumps(raw_list, sort_keys=False, indent=2, ensure_ascii=False)
+                try:
+                    with open(sub_list_json, 'w', encoding='utf-8') as file:
+                        file.write(updated_list)
+                except Exception as e:
+                    print(f"Ошибка записи {sub_list_json}: {e}")
 
     def update_airports(id, current_url):
+        new_url = current_url
         if id == 5:
-            # try:
-            s = requests.Session()
-            s.mount('http://', HTTPAdapter(max_retries=2))
-            s.mount('https://', HTTPAdapter(max_retries=2))
-            urllist = list(set(list(filter(lambda x: x != "" and str(x).startswith("http"), s.get(
-                'https://raw.githubusercontent.com/RenaLio/Mux2sub/main/urllist', timeout=4).text.split("\n")))))
-            sublist = list(set(list(filter(lambda x: x != "" and str(x).startswith("http"), s.get(
-                'https://raw.githubusercontent.com/RenaLio/Mux2sub/main/sub_list', timeout=4).text.split("\n")))))
+            try:
+                s = requests.Session()
+                s.mount('http://', HTTPAdapter(max_retries=2))
+                s.mount('https://', HTTPAdapter(max_retries=2))
 
-            air_free = list(set(list(filter(lambda x: x != "" and str(x).startswith("http"), s.get(
-                'https://raw.githubusercontent.com/rxsweet/getAirport/main/config/sublist_free', timeout=4).text.split("\n")))))
-            air_mining = list(set(list(filter(lambda x: x != "" and str(x).startswith("http"), s.get(
-                'https://raw.githubusercontent.com/rxsweet/getAirport/main/config/sublist_mining', timeout=4).text.split("\n")))))
+                urllist = []
+                for url in [
+                    'https://raw.githubusercontent.com/RenaLio/Mux2sub/main/urllist',
+                    'https://raw.githubusercontent.com/RenaLio/Mux2sub/main/sub_list',
+                    'https://raw.githubusercontent.com/rxsweet/getAirport/main/config/sublist_free',
+                    'https://raw.githubusercontent.com/rxsweet/getAirport/main/config/sublist_mining'
+                ]:
+                    try:
+                        resp = s.get(url, timeout=4)
+                        if resp.status_code == 200:
+                            lines = resp.text.split("\n")
+                            valid = list(filter(lambda x: x.strip() and x.strip().startswith("http"), lines))
+                            urllist.extend(valid)
+                    except Exception as e:
+                        print(f"Ошибка получения {url}: {e}")
 
-            urllist.extend(sublist)
-            urllist.extend(air_free)
-            urllist.extend(air_mining)
-
-            # urllist = list(map(lambda x: quote(x, safe=""), urllist))
-            # urllist = list(filter(lambda x: str(x).__contains__(
-            #    "getafreenode.com") == False, urllist))
-            new_url = "|".join(list(set(urllist)))
-            # except Exception as e:
-            #     print(e)
+                if urllist:
+                    new_url = "|".join(list(set(urllist)))
+            except Exception as e:
+                print(f"Ошибка в update_airports: {e}")
         return new_url
 
     def change_date(id, current_url):
-        if id == 0:
-            today = datetime.today().strftime('%m%d')
-            url_front = 'https://raw.githubusercontent.com/pojiezhiyuanjun/freev2/master/'
-            url_end = '.txt'
-            new_url = url_front + today + url_end
+        new_url = current_url
+        try:
+            if id == 0:
+                today = datetime.today().strftime('%m%d')
+                new_url = f'https://raw.githubusercontent.com/pojiezhiyuanjun/freev2/master/{today}.txt'
+            elif id == 1:
+                today = datetime.today().strftime('%Y%m%d')
+                this_year = datetime.today().strftime('%Y')
+                this_month = datetime.today().strftime('%m')
+                new_url = f'https://nodefree.org/dy/{this_year}/{this_month}/{today}.yaml'
+            elif id == 3:
+                today = datetime.today().strftime('%Y%m%d')
+                this_month = datetime.today().strftime('%m')
+                this_year = datetime.today().strftime('%Y')
+                new_url = f'https://v2rayshare.com/wp-content/uploads/{this_year}/{this_month}/{today}.txt'
+            elif id == 4:
+                today = datetime.today().strftime('%Y%m%d')
+                this_month = datetime.today().strftime('%m')
+                this_year = datetime.today().strftime('%Y')
+                new_url = f'https://clashnode.com/wp-content/uploads/{this_year}/{this_month}/{today}.txt'
 
-        if id == 1:
-            today = datetime.today().strftime('%Y%m%d')
-            this_year = datetime.today().strftime('%Y')
-            this_month = datetime.today().strftime('%m')
-            url_front = 'https://nodefree.org/dy/'
-            url_end = '.yaml'
-            new_url = url_front + this_year + '/' + this_month + '/' + today + url_end
-
-        if id == 3:
-            # https://v2rayshare.com/wp-content/uploads/2022/10/20221025.txt
-            today = datetime.today().strftime('%Y%m%d')
-            this_month = datetime.today().strftime('%m')
-            this_year = datetime.today().strftime('%Y')
-            url_front = 'https://v2rayshare.com/wp-content/uploads/'
-            url_end = '.txt'
-            new_url = url_front + \
-                "/".join([this_year, this_month, today]) + url_end
-
-        if id == 4:
-            # https://clashnode.com/wp-content/uploads/2022/10/20221004.yaml
-            today = datetime.today().strftime('%Y%m%d')
-            this_month = datetime.today().strftime('%m')
-            this_year = datetime.today().strftime('%Y')
-            url_front = 'https://clashnode.com/wp-content/uploads/'
-            url_end = '.txt'
-            new_url = url_front + \
-                "/".join([this_year, this_month, today]) + url_end
-
-        if url_updated(new_url):
-            return new_url
-        else:
-            return current_url
+            if url_updated(new_url):
+                return new_url
+        except Exception as e:
+            print(f"Ошибка в change_date для ID {id}: {e}")
+        return current_url
 
     def find_link(id, current_url):
         if id == 2:
             try:
-                res_json = requests.get(
-                    'https://api.github.com/repos/mianfeifq/share/contents/').json()
-                for file in res_json:
-                    if file['name'].startswith('data'):
-                        return file['download_url']
-                else:
-                    return current_url
-            except Exception:
-                return current_url
+                res = requests.get('https://api.github.com/repos/mianfeifq/share/contents/', timeout=4)
+                if res.status_code == 200:
+                    res_json = res.json()
+                    for file in res_json:
+                        if file.get('name', '').startswith('data'):
+                            return file.get('download_url', current_url)
+            except Exception as e:
+                print(f"Ошибка в find_link для ID {id}: {e}")
+        return current_url
 
 
 if __name__ == '__main__':
