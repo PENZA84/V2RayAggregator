@@ -2,29 +2,50 @@ name: test_ip
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'utils/test_ip/**'
+  schedule:
+    - cron: '0 */6 * * *'
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Install Python
-        uses: actions/setup-python@v2
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
-      - name: Load Cache
-        uses: actions/cache@v2
+          python-version: '3.11'
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/run_in_Actions/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-      - name: Set Timezone
-        run: sudo timedatectl set-timezone 'Asia/Tehran'
-      - name: Install Dependencies
+
+      - name: Install dependencies
         run: |
-          pip install -r ./utils/requirements.txt
-      - name: Run Ip Test
+          python3 -m pip install --upgrade pip
+          pip install requests pyyaml
+
+      - name: Run IP Test
         run: |
-          sudo sh ./utils/speedtest/ip_test.sh
+          python3 ./utils/test_ip/check.py
+        env:
+          TZ: Asia/Shanghai
+
+      - name: Save Results
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'Update IP test results'
+          file_pattern: 'utils/test_ip/*.json utils/test_ip/*.txt'
+          branch: ${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
