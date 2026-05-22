@@ -1,90 +1,69 @@
 name: clash_yaml
 
-# Условия запуска
 on:
-  workflow_dispatch: # Ручной запуск
-
+  workflow_dispatch:
   push:
+    branches:
+      - master
     paths:
-      - "./EternityBase/**" # Запуск, если изменилось что-то в папке
-
+      - 'utils/airport/speedtest/**'
+      - 'utils/process_result.py'
+      - 'sub/**'
   schedule:
-    # Автоматический запуск: в 02:45 и 14:45 каждый день
-    - cron: "45 2,14 * * *"
+    - cron: '0 */6 * * *'
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-      # 📥 Копируем код репозитория
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: master
-          fetch-depth: 0
 
-      # 🐍 Устанавливаем Python (последняя совместимая версия)
+      - name: Set Timezone
+        uses: szenius/set-timezone@v2.0
+        with:
+          timezone: "Asia/Shanghai"
+
       - name: Install Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11" # Вместо "3.x" — точнее и стабильнее
-          cache: "pip" # Встроенное кэширование, старое убрала
+          python-version: '3.11'
 
-      # ⏱ Устанавливаем часовой пояс
-      - name: Set Timezone
+      - name: Install Requirements
         run: |
-          sudo timedatectl set-timezone 'Asia/Tehran'
-          echo "Время: $(date)"
+          python3 -m pip install --upgrade pip
+          pip install pyyaml requests base64 json
 
-      # 📦 Устанавливаем зависимости
-      - name: Install Dependencies
+      - name: Prepare directories
         run: |
-          python -m pip install --upgrade pip
-          pip install -r ./utils/requirements.txt
-          pip install requests httpx urllib3 # Дополнительно для надёжности
+          mkdir -p ./sub
+          mkdir -p ./utils/airport/speedtest
 
-      # ⚙️ Запускаем конвертацию и фильтрацию
-      - name: Run Lite Speedtest / Converter
+      - name: Download speedtest files
         run: |
-          # Скачиваем и запускаем конвертер
-          wget -q -O subconverter.tar.gz https://github.com/tindy2013/subconverter/releases/download/v0.7.2/subconverter_linux64.tar.gz
-          tar -zxf subconverter.tar.gz -C ./
-          chmod +x ./subconverter/subconverter
-          nohup ./subconverter/subconverter > ./subconverter.log 2>&1 &
+          wget -O ./utils/airport/speedtest/lite-linux-amd64.gz https://github.com/xxf098/LiteSpeedTest/releases/download/v0.15.0/lite-linux-amd64-v0.15.0.gz
+          gzip -d ./utils/airport/speedtest/lite-linux-amd64.gz
+          chmod +x ./utils/airport/speedtest/lite-linux-amd64
+          wget -O ./utils/airport/speedtest/lite_config.json https://raw.githubusercontent.com/mahdibland/ShadowsocksAggregator/master/utils/airport/speedtest/lite_config_yaml_airport.json
 
-          # Запускаем основной скрипт
-          python ./utils/eternity_convert.py
-
-          # Очистка за собой
-          rm -f subconverter.tar.gz || true
-          rm -rf subconverter/ || true
-          rm -f subconverter.log || true
-
-      # 💾 Сохраняем изменения
-      - name: Commit changes
+      - name: Run SpeedTest
         run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions Bot"
+          cd ./utils/airport/speedtest/
+          ./lite-linux-amd64 --config ./lite_config.json --test https://raw.githubusercontent.com/mahdibland/SSAggregator/master/sub/airport_merge_yaml.yml > ../../../speedtest.log 2>&1
+        continue-on-error: true
 
-          git pull origin master --rebase || true # Без ошибок при конфликте
+      - name: Generate Clash YAML
+        run: |
+          python3 ./utils/process_result.py
+        env:
+          TZ: Asia/Shanghai
+        if: always()
 
-          git add Eternity.yml || true
-          git add Eternity/ || true
-          git add README.md || true
-          git add ./update/ || true
-          git add LogInfo.txt || true
-
-          # Не делаем пустой коммит
-          if git diff --staged --quiet; then
-            echo "📊 Нет изменений — коммит не требуется."
-          else
-            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') ✅ Filter Nodes updated"
-          fi
-
-      # 🚀 Отправляем в репозиторий
-      - name: Push Change
-        uses: ad-m/github-push-action@master
+      - name: Commit Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          with:
-            branch: master
-            github_token: ${{ secrets.GITHUB_TOKEN }} # Встроенный токен, ничего создавать не нужно
+          commit_message: 'Update output.py and results'
+          file_pattern: 'sub/*.yml output.json speedtest.log'
+          branch: ${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
