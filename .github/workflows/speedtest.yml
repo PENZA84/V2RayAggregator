@@ -1,56 +1,87 @@
 name: speedtest
 
-# 触发条件
+# Условия запуска
 on:
-  workflow_dispatch:
-  
+  workflow_dispatch: # Ручной запуск
+
   push:
     paths:
-      - './sub/sub_merge_base64.txt'
-      
+      - './sub/sub_merge_base64.txt' # Запуск, если обновился объединённый список
+
   schedule:
+    # Автоматический запуск каждые 8 часов в 30 минут
     - cron: '30 */8 * * *'
-  
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Install Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
-    - name: Load Cache
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/run_in_Actions/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    - name: Set Timezone
-      run: sudo timedatectl set-timezone 'Asia/Tehran'
-    - name: Install Dependencies
-      run: |
-        pip install -r ./utils/requirements.txt
-    - name: Run Lite Speedtest
-      run: |
-        sudo sh ./utils/speedtest/speedtest2.sh
-        python ./utils/speedtest/output.py
-        python ./utils/eternity_convert.py
-    - name: Commit changes
-      run: |                 
-        git config --local user.email "actions@github.com"
-        git config --local user.name "GitHub Actions"
-        git pull origin master
-        git add Eternity
-        git add Eternity.yml
-        git add README.md
-        git add ./update/*
-        git add LogInfo.txt
-        git commit -m "$(date '+%Y-%m-%d %H:%M:%S') Filter Nodes"
-    - name: Push Change
-      uses:  ad-m/github-push-action@master
-      with:
-        # github_token: ${{ secrets.TOKEN }}
-        branch: master
+      # 📥 Копируем репозиторий полностью
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      # 🐍 Устанавливаем стабильную версию Python
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # Встроенное кэширование, старое убрала
+
+      # ⏱ Устанавливаем часовой пояс Тегеран
+      - name: Set Timezone
+        run: |
+          sudo timedatectl set-timezone 'Asia/Tehran'
+          echo "Время установлено: $(date)"
+
+      # 📦 Устанавливаем все зависимости
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ./utils/requirements.txt
+          pip install requests httpx urllib3 # Дополнительно для стабильности
+
+      # ⚙️ Запускаем тест скорости + конвертацию
+      - name: Run Lite Speedtest
+        run: |
+          # Даём права на запуск скрипта
+          chmod +x ./utils/speedtest/speedtest2.sh
+          
+          # Запускаем тест скорости
+          sudo sh ./utils/speedtest/speedtest2.sh
+          
+          # Обрабатываем результаты
+          python ./utils/speedtest/output.py
+          
+          # Конвертируем и фильтруем
+          python ./utils/eternity_convert.py
+
+      # 💾 Сохраняем изменения
+      - name: Commit changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions Bot"
+
+          git pull origin master --rebase || true # Без ошибок при синхронизации
+
+          git add Eternity/ || true
+          git add Eternity.yml || true
+          git add README.md || true
+          git add ./update/ || true
+          git add LogInfo.txt || true
+
+          # Пропускаем коммит, если ничего не изменилось
+          if git diff --staged --quiet; then
+            echo "📊 Нет изменений — обновление не требуется."
+          else
+            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') ✅ Speedtest + Filter completed"
+          fi
+
+      # 🚀 Отправляем в репозиторий
+      - name: Push Change
+        uses: ad-m/github-push-action@master
+        with:
+          branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }} # Встроенный токен, ничего создавать не нужно
