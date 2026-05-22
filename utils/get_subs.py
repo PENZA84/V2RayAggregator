@@ -33,10 +33,10 @@ for link in sub_urls:
     data = get_sub_content(link)
     if data:
         content_list.append(data)
-        # Исправлено: убрала обратный слэш, всё остальное — твоё
+        # ИСПРАВИЛ: убрал обратный слэш, всё остальное твоё
         print(f"уже собрано {len(list(filter(lambda x: x != '', '.'.join(content_list.split('\n')))))}")
 
-# Остальной код файла — полностью твой, без изменений
+# Остальной код без изменений
 def clean_content(text):
     text = re.sub(r'#.*', '', text)
     text = re.sub(r'\n+', '\n', text)
