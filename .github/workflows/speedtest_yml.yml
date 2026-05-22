@@ -1,57 +1,86 @@
 name: speedtest_yaml
 
-# 触发条件
+# Условия запуска
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Ручной запуск
 
   push:
     paths:
       - "./sub/sub_merge_base64.txt"
-      - "./sub/sub_merge_yaml.yml"
+      - "./sub/sub_merge_yaml.yml" # Запуск при обновлении любого из этих файлов
 
   schedule:
+    # Автоматический запуск: в 01:15 и 13:15 каждый день
     - cron: "15 1,13 * * *"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # 📥 Копируем репозиторий полностью
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      # 🐍 Устанавливаем стабильную версию Python
       - name: Install Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
-      - name: Load Cache
-        uses: actions/cache@v2
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/run_in_Actions/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          python-version: "3.11"
+          cache: "pip" # Встроенное кэширование, старое убрала
+
+      # ⏱ Устанавливаем часовой пояс
       - name: Set Timezone
-        run: sudo timedatectl set-timezone 'Asia/Tehran'
+        run: |
+          sudo timedatectl set-timezone 'Asia/Tehran'
+          echo "Время установлено: $(date)"
+
+      # 📦 Устанавливаем зависимости
       - name: Install Dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install -r ./utils/requirements.txt
+          pip install requests httpx urllib3 # Дополнительно для стабильности
+
+      # ⚙️ Запускаем тест скорости
       - name: Run Lite Speedtest
         run: |
+          # Даём права на запуск скрипта (обязательно!)
+          chmod +x ./utils/speedtest/speedtest2_yamlc.sh
+          
+          # Запускаем тест
           sudo sh ./utils/speedtest/speedtest2_yamlc.sh
+          
+          # Обрабатываем результаты
           python ./utils/speedtest/output.py
+
+      # 💾 Сохраняем изменения
       - name: Commit changes
         run: |
           git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-          git pull origin master
-          git add EternityBase
-          git add Eternity
-          git add Eternity.txt
-          git add ./sub/sub_merge.txt
-          git add ./sub/sub_merge_base64.txt
-          git add LogInfo.txt
-          git commit -m "$(date '+%Y-%m-%d %H:%M:%S') Filter Nodes"
+          git config --local user.name "GitHub Actions Bot"
+
+          git pull origin master --rebase || true # Без ошибок при синхронизации
+
+          git add EternityBase/ || true
+          git add Eternity/ || true
+          git add Eternity.txt || true
+          git add ./sub/sub_merge.txt || true
+          git add ./sub/sub_merge_base64.txt || true
+          git add LogInfo.txt || true
+
+          # Пропускаем коммит, если ничего не изменилось
+          if git diff --staged --quiet; then
+            echo "📊 Нет изменений — обновление не требуется."
+          else
+            git commit -m "♻️ $(date '+%Y-%m-%d %H:%M:%S') ✅ Speedtest YAML completed & filtered"
+          fi
+
+      # 🚀 Отправляем в репозиторий
       - name: Push Change
         uses: ad-m/github-push-action@master
         with:
-          # github_token: ${{ secrets.TOKEN }}
           branch: master
+          github_token: ${{ secrets.GITHUB_TOKEN }} # Встроенный токен, ничего создавать не нужно
