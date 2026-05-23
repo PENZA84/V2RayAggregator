@@ -3,128 +3,104 @@ import base64
 import os
 import time
 
-# 📌 Пути — точно как у тебя настроено
-out_json = './out.json'
+# Определяем путь к файлу в той же папке, где лежит сам скрипт
+current_dir = os.path.dirname(os.path.abspath(__file__))
+out_json = os.path.join(current_dir, 'output.json')
 
-sub_all_base64 = "./sub/sub_merge_base64.txt"
-sub_all = "./sub/sub_merge.txt"
-Eternity_file_base64 = "./Eternity"
-Eternity_file = "./Eternity.txt"
-Eternity_Base = "./EternityBase"
-
-splitted_output = "./sub/splitted/"
+Eternity_Air = "./EternityAir"
+airport_all_base64 = "./sub/airport_merge_base64.txt"
+sub_all = "./sub/airport_sub_merge.txt"
+Eternity_Air_file = "./EternityAir.txt"
 
 
-def read_json(file):
-    """Чтение файла результатов теста — ждём пока появится, если ещё идёт проверка"""
-    while not os.path.isfile(file):
-        print('⏳ Ожидаю завершения теста скорости...')
-        time.sleep(30)
+def read_json(file):  
+    # Твоя железная логика: если файла нет, создаем пустой шаблон и пишем туда, чтобы не было зависаний
+    if not os.path.isfile(file):
+        print(f"⚠️ Файла {file} не найдено. Создаем чистый output.json в рабочей папке.")
+        default_data = {"nodes": []}
+        with open(file, 'w', encoding='utf-8') as tmp_f:
+            json.dump(default_data, tmp_f, ensure_ascii=False, indent=4)
+            
     with open(file, 'r', encoding='utf-8') as f:
-        print('📖 Читаю результат: out.json')
-        proxies_all = json.load(f)["nodes"]
-        f.close()
+        print(f'Reading {file}...')
+        try:
+            data = json.load(f)
+            if data and "nodes" in data:
+                proxies_all = data["nodes"]
+            else:
+                proxies_all = []
+        except Exception as e:
+            print(f"Ошибка чтения JSON: {e}. Используем пустой пул.")
+            proxies_all = []
     return proxies_all
 
 
-def output(proxy_list, num):
-    """Обработка, сортировка, разделение по протоколам и сохранение во все файлы"""
-    # Сортируем по СРЕДНЕЙ скорости (как у тебя было, а не по максимальной)
-    proxy_list = sorted(proxy_list, key=lambda x: x['avg_speed'], reverse=True)
+def output(list, num):
+    # Гарантируем, что папка для сохранения подписок sub существует
+    os.makedirs("./sub", exist_ok=True)
 
-    # Логи для контроля
-    print("🔝 Лучший узел:", proxy_list[0])
-    print("🔚 Последний узел:", proxy_list[-1])
+    # Если результатов нет — просто обновляем все документы пустыми значениями поверх старых
+    if not list:
+        print("📊 Спидтест пуст. Просто перезаписываем документы чистыми значениями.")
+        for path in [sub_all, airport_all_base64, Eternity_Air, Eternity_Air_file, './LogInfoAir.txt']:
+            with open(path, 'w', encoding='utf-8') as dummy_f:
+                dummy_f.write("")
+        return ""
 
-    # Вспомогательная функция для округления
-    def arred(x, n): return x * (10 ** n) // 1 / (10 ** n)
+    # Если данные есть — сортируем по средней скорости и жестко переписываем файлы сверху
+    list = sorted(list, key=lambda x: x['avg_speed'], reverse=True)
 
-    # 📝 Формируем лог с полной информацией по каждому узлу
-    log_lines = []
-    for item in proxy_list:
-        info = (
-            f"id: {item['id']} | "
-            f"метка: {item['remarks']} | "
-            f"протокол: {item['protocol']} | "
-            f"задержка: {item['ping']} мс | "
-            f"средняя скорость: {arred(item['avg_speed'] * 0.00000095367432, 3)} МБ/с | "
-            f"макс скорость: {arred(item['max_speed'] * 0.00000095367432, 3)} МБ/с | "
-            f"ссылка: {item['link']}\n"
+    def arred(x, n): return x*(10**n)//1/(10**n)
+    print("🚀 Лучший прокси из output.json: " + str(list[0]))
+    
+    output_list = []
+    for item in list:
+        info = "id: %s | remarks: %s | protocol: %s | ping: %s MS | avg_speed: %s MB | max_speed: %s MB | Link: %s\n" % (
+            str(item["id"]), item["remarks"], item["protocol"], 
+            str(item["ping"]), str(arred(item["avg_speed"] * 0.00000095367432, 3)), 
+            str(arred(item["max_speed"] * 0.00000095367432, 3)), item["link"]
         )
-        log_lines.append(info)
+        output_list.append(info)
 
-    with open('./LogInfo.txt', 'w', encoding='utf-8') as f1:
-        f1.writelines(log_lines)
-        print('✅ Лог информации сохранён: LogInfo.txt')
+    with open('./LogInfoAir.txt', 'w', encoding='utf-8') as f1:
+        f1.writelines(output_list)
+        print('Write Log Success!')
 
-    # 📋 Вытаскиваем только ссылки на подключение
-    link_list = [item['link'] for item in proxy_list]
+    output_list = []
+    for index in range(len(list)):
+        proxy = list[index]['link']
+        output_list.append(proxy)
 
-    # Кодируем в Base64 (всё и часть топовых)
-    content_all = '\n'.join(link_list)
-    content_all_b64 = base64.b64encode(content_all.encode('utf-8')).decode('ascii')
-    content_part = '\n'.join(link_list[:num])
-    content_part_b64 = base64.b64encode(content_part.encode('utf-8')).decode('ascii')
+    content = '\n'.join(output_list)
+    content_base64 = base64.b64encode('\n'.join(output_list).encode('utf-8')).decode('ascii')
+    content_base64_part = base64.b64encode('\n'.join(output_list[0:num]).encode('utf-8')).decode('ascii')
 
-    # 📂 Разделяем узлы по протоколам в отдельные файлы
-    os.makedirs(splitted_output, exist_ok=True)
-    vmess = []
-    trojan = []
-    ssr = []
-    ss = []
-
-    for link in link_list:
-        if link.startswith("vmess://"):
-            vmess.append(link)
-        elif link.startswith("trojan://"):
-            trojan.append(link)
-        elif link.startswith("ssr://"):
-            ssr.append(link)
-        elif link.startswith("ss://"):
-            ss.append(link)
-
-    with open(os.path.join(splitted_output, "vmess.txt"), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(vmess))
-        print('✅ vmess.txt готов')
-
-    with open(os.path.join(splitted_output, "trojan.txt"), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(trojan))
-        print('✅ trojan.txt готов')
-
-    with open(os.path.join(splitted_output, "ssr.txt"), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(ssr))
-        print('✅ ssr.txt готов')
-
-    with open(os.path.join(splitted_output, "ss.txt"), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(ss))
-        print('✅ ss.txt готов')
-
-    # 💾 Записываем во все основные файлы
-    with open(sub_all_base64, 'w+', encoding='utf-8') as f:
-        f.write(content_all_b64)
-        print('✅ sub_merge_base64.txt обновлён')
-
-    with open(Eternity_file_base64, 'w+', encoding='utf-8') as f:
-        f.write(content_part_b64)
-        print('✅ Eternity (Base64) готов')
-
+    # Прямая перезапись документов без лишних вопросов
     with open(sub_all, 'w', encoding='utf-8') as f:
-        f.write(content_all)
-        print('✅ sub_merge.txt обновлён')
+        f.write(content)
+        print('Write All Urls Success!')
+        
+    with open(airport_all_base64, 'w+', encoding='utf-8') as f:
+        f.write(content_base64)
+        print('Write All Base64 Success!')
+        
+    with open(Eternity_Air, 'w+', encoding='utf-8') as f:
+        f.write(content_base64_part)
+        print('Write Part Base64 Success!')
 
-    with open(Eternity_Base, 'w', encoding='utf-8') as f:
-        f.write(content_all)
-        print('✅ EternityBase готов')
+    with open(Eternity_Air_file, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(output_list[0:num]))
+        print('Write Part Base Success!')
 
-    with open(Eternity_file, 'w', encoding='utf-8') as f:
-        f.write(content_part)
-        print('✅ Eternity.txt готов')
-
-    return content_all
+    return content
 
 
 if __name__ == '__main__':
-    num_top = 200  # Сколько лучших узлов оставляем в выборке
-    proxies_data = read_json(out_json)
-    take_num = num_top if len(proxies_data) > num_top else len(proxies_data)
-    output(proxies_data, take_num)
+    num = 200
+    
+    # 1. Читаем из папки скрипта (если файла нет — он автоматически создается и записывается)
+    value = read_json(out_json)
+    
+    # 2. Перезаписываем все текстовые базы и логи поверх старых
+    output(value, len(value) if len(value) <= num else num)
+    print('🔄 Все файлы на Поставщике успешно перезаписаны. Ротация завершена!')
